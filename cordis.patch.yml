@@ -1,0 +1,7 @@
+# dsh-gateway-wallet bundle patch。
+#
+# 安装进 profile 后自动生效。entry name 必须是裸包名。
+- insert:
+    - id: dsh-gateway-wallet
+      name: dsh-gateway-wallet
+      config: {}
