@@ -25,9 +25,12 @@ const CSS = [
   '.gww_badge{width:100%;min-width:0;height:49px;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;padding:0 8px 0 6px;font-family:inherit;font-size:14px;display:inline-flex;overflow:hidden}',
   '.gww_badge:hover{background:var(--dsw-alias-interactive-bg-hover-solid)}',
   '.gww_badge[data-active]{background:var(--dsw-alias-interactive-bg-hover)}',
-  '.gww_badgeIcon{flex:none;display:inline-flex;align-items:center}',
+  '.gww_badgeIcon{flex:none;display:inline-flex;align-items:center;position:relative}',
+  '.gww_dot{position:absolute;top:-2px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-warn-primary);box-shadow:0 0 0 1.5px var(--dsw-alias-bg-base);pointer-events:none}',
   '.gww_badgeLabel{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}',
   '.gww_badgeValue{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;flex:none;margin-left:auto;font-size:12px;line-height:16px}',
+  '.gww_badge[data-low] .gww_badgeValue{color:var(--dsw-alias-state-warn-primary)}',
+  '.gww_stat[data-low] .gww_statValue{color:var(--dsw-alias-state-warn-primary)}',
   '.gww_layer.gww_rail{flex:none;width:36px;height:36px;margin:0}',
   '.gww_layer.gww_rail .gww_badge{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;padding:0}',
   '.gww_layer.gww_rail .gww_badgeLabel,.gww_layer.gww_rail .gww_badgeValue{display:none}',
@@ -90,6 +93,21 @@ function fmtMoney(money: Money | undefined): string {
 
 function fmtCount(value: number | undefined): string {
   return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : '—'
+}
+
+/** 低于 $1 或 ¥5 才打点。额度单位不算钱，读不到余额也不猜。 */
+const LOW_USD = 1
+const LOW_CNY = 5
+
+function isLowBalance(money: Money | undefined, unlimited?: boolean): boolean {
+  if (unlimited === true || money === undefined) return false
+  if (typeof money.display === 'number' && Number.isFinite(money.display)) {
+    return money.display < LOW_CNY
+  }
+  if (typeof money.usd === 'number' && Number.isFinite(money.usd)) {
+    return money.usd < LOW_USD
+  }
+  return false
 }
 
 function agoLabel(at: number, now = Date.now()): string {
@@ -270,7 +288,7 @@ function WalletBody({
       )}
 
       <div className="gww_stats">
-        <div className="gww_stat">
+        <div className="gww_stat" {...isLowBalance(snapshot.remaining, snapshot.unlimited) ? { 'data-low': '' } : {}}>
           <div className="gww_statValue">
             {snapshot.unlimited === true ? '不限' : fmtMoney(snapshot.remaining)}
           </div>
@@ -425,6 +443,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
 
   const snapshot: WalletSnapshot | undefined = bundle?.wallet.ok === true ? bundle.wallet : undefined
   const badgeValue = badgeRemaining
+  const low = snapshot !== undefined && isLowBalance(snapshot.remaining, snapshot.unlimited)
   const reload = (): void => { if (!busy) setNonce(n => n + 1) }
   const selected = inspectRoute ?? bundle?.selected ?? ''
 
@@ -434,12 +453,16 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
         type="button"
         className="gww_badge"
         {...open ? { 'data-active': '' } : {}}
-        title="中转站钱包"
-        aria-label="中转站钱包"
+        {...low ? { 'data-low': '' } : {}}
+        title={low ? '中转站钱包 · 余额偏低' : '中转站钱包'}
+        aria-label={low ? '中转站钱包，余额偏低' : '中转站钱包'}
         aria-expanded={open}
         onClick={() => setOpen(value => !value)}
       >
-        <span className="gww_badgeIcon"><IconApiOutline14 size={wide === false ? 16 : 14} /></span>
+        <span className="gww_badgeIcon">
+          <IconApiOutline14 size={wide === false ? 16 : 14} />
+          {low && <span className="gww_dot" aria-hidden="true" />}
+        </span>
         <span className="gww_badgeLabel">中转站钱包</span>
         <span className="gww_badgeValue">{badgeValue}</span>
       </button>

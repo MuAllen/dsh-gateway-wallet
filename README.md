@@ -10,6 +10,7 @@ DeepSeek Harness 侧边栏左下角的「中转站钱包」：点开后显示**�
 - 余额、今日实扣、累计已用
 - 今日 / 累计 token 桶与请求数
 - 套餐名、RPM / TPM
+- 余额低于 $1 / ¥5 时，侧边栏按钮打点（侧栏收起时仍能看见）
 
 完整 API Key 只在本机 Host 进程里用作 `Authorization` 头，不会进入浏览器，也不会发到本插件作者的任何服务器。
 
@@ -35,6 +36,7 @@ dsh plugin --profile web remove dsh-gateway-wallet
 | 站点程序 | 接口 | 说明 |
 | --- | --- | --- |
 | Sub2API（如部分国内中转） | `GET /v1/usage` | 余额、今日/累计实扣、token 桶 |
+| New API / One API 等分支 | `GET /api/usage/token/` | 额度、已用；今日仅日志完整返回时显示 |
 | DeepSeek 官方 | `GET /user/balance` | 仅 `api.deepseek.com`：余额；没有今日实扣 |
 
 只使用你已经配给这条路由的普通 API key。打开账本前会用不带密钥的 404/401 探测认出是 Sub2API 还是 New API；对不上的站点会说明原因，**不会按另一套程序换算额度**。

@@ -216,13 +216,15 @@ async function readUnits(origin: string): Promise<QuotaUnits> {
   }
 }
 
-async function readToday(
+async function readWindow(
   origin: string,
   apiKey: string,
   units: QuotaUnits,
+  fromMs: number,
+  toMs: number,
 ): Promise<{ money: Money; requests?: number } | { reason: string }> {
-  const from = Math.floor(localDayStartMs() / 1000)
-  const to = Math.floor(Date.now() / 1000) + 60
+  const from = Math.floor(fromMs / 1000)
+  const to = Math.floor(toMs / 1000) + 60
 
   const tryStat = async (): Promise<{ money: Money; requests?: number } | undefined> => {
     const { status, body } = await getJson(origin, '/api/log/self/stat', apiKey, {
@@ -282,12 +284,14 @@ async function readToday(
         quota += num((item as Record<string, unknown>).quota) ?? 0
         requests += 1
       }
-      if (items.length < LOG_PAGE_SIZE) break
-      if (page === LOG_MAX_PAGES) break
+      if (items.length < LOG_PAGE_SIZE) {
+        const money = quotaToMoney(quota, units)
+        if (money === undefined) return undefined
+        return { money, requests }
+      }
+      if (page === LOG_MAX_PAGES) return undefined
     }
-    const money = quotaToMoney(quota, units)
-    if (money === undefined) return undefined
-    return { money, requests }
+    return undefined
   }
 
   try {
@@ -502,8 +506,8 @@ async function readNewApi(account: RouteAccount, apiKey: string): Promise<Wallet
 
   const remaining = unlimited ? undefined : quotaToMoney(available ?? (granted !== undefined && usedQuota !== undefined ? granted - usedQuota : undefined), units)
   const used = quotaToMoney(usedQuota, units)
-
-  const todayResult = await readToday(account.origin, apiKey, units)
+  const now = Date.now()
+  const todayResult = await readWindow(account.origin, apiKey, units, localDayStartMs(now), now)
   const todayOk = !('reason' in todayResult)
 
   return {
