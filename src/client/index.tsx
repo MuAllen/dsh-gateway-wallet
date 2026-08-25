@@ -370,9 +370,10 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
         setBundle(data)
         setError(undefined)
         setBusy(false)
-        const currentRoute = data.accounts.find(account => account.isCurrent)?.route
-        if (data.wallet.ok === true && (currentRoute === undefined || data.wallet.route === currentRoute)) {
+        if (data.wallet.ok === true) {
           setBadgeRemaining(data.wallet.unlimited === true ? '不限' : fmtMoney(data.wallet.remaining))
+        } else {
+          setBadgeRemaining('')
         }
       },
       (err: unknown) => {
