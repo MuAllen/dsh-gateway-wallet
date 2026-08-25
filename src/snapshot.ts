@@ -3,7 +3,7 @@
  * 凭据只在本次请求的 Authorization 头里用，用完即弃。
  */
 import type { Context } from '@deepseek-ai/cordis'
-import type { Money, TokenBuckets, WalletError, WalletSnapshot } from './shared.ts'
+import type { AccountListItem, Money, TokenBuckets, WalletBundle, WalletError, WalletSnapshot } from './shared.ts'
 
 const DEFAULT_QUOTA_PER_UNIT = 500_000
 const TIMEOUT_MS = 15_000
@@ -293,6 +293,15 @@ async function readToday(
   return { reason: 'gateway-logs-unavailable' }
 }
 
+function hostLabel(origin: string): string {
+  try {
+    const url = new URL(origin)
+    return url.port === '' ? url.hostname : `${url.hostname}:${url.port}`
+  } catch {
+    return origin
+  }
+}
+
 export function listRouteAccounts(ctx: Context): RouteAccount[] {
   const llm = ctx.get('llm') as { listConfigurableProviders?: () => Array<{
     provider: string
@@ -353,9 +362,42 @@ async function resolveApiKey(ctx: Context, reference: string | undefined): Promi
   }
 }
 
-export async function fetchWallet(ctx: Context): Promise<WalletSnapshot | WalletError> {
-  const account = currentAccount(ctx)
-  if (account === undefined) return { ok: false, error: 'no-provider' }
+export async function listAccounts(ctx: Context): Promise<AccountListItem[]> {
+  const current = currentAccount(ctx)
+  const out: AccountListItem[] = []
+  for (const account of listRouteAccounts(ctx)) {
+    const apiKey = await resolveApiKey(ctx, account.apiKeyEnv)
+    const hasCredential = apiKey !== undefined && apiKey !== ''
+    out.push({
+      route: account.route,
+      displayName: account.displayName,
+      origin: account.origin,
+      host: hostLabel(account.origin),
+      hasCredential,
+      isCurrent: current?.route === account.route,
+      ...hasCredential ? { keyHint: maskKey(apiKey) } : {},
+    })
+  }
+  return out
+}
+
+function accountForRoute(ctx: Context, route: string | undefined): RouteAccount | WalletError {
+  const accounts = listRouteAccounts(ctx)
+  if (accounts.length === 0) return { ok: false, error: 'no-provider' }
+  const current = currentAccount(ctx)
+  if (route === undefined || route === '') {
+    return current ?? { ok: false, error: 'no-provider' }
+  }
+  const hit = accounts.find(account => account.route === route)
+  if (hit === undefined) return { ok: false, error: 'unknown-account', detail: route }
+  return current?.route === hit.route && current.model !== undefined
+    ? { ...hit, model: current.model }
+    : hit
+}
+
+export async function fetchWallet(ctx: Context, route?: string): Promise<WalletSnapshot | WalletError> {
+  const account = accountForRoute(ctx, route)
+  if ('ok' in account && account.ok === false) return account
 
   const apiKey = await resolveApiKey(ctx, account.apiKeyEnv)
   if (apiKey === undefined || apiKey === '') {
@@ -419,5 +461,17 @@ export async function fetchWallet(ctx: Context): Promise<WalletSnapshot | Wallet
   } catch (error) {
     const name = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable'
     return { ok: false, error: name, detail: account.origin }
+  }
+}
+
+export async function fetchBundle(ctx: Context, route?: string): Promise<WalletBundle> {
+  const accounts = await listAccounts(ctx)
+  const selected = route !== undefined && accounts.some(account => account.route === route)
+    ? route
+    : accounts.find(account => account.isCurrent)?.route ?? accounts[0]?.route ?? ''
+  return {
+    accounts,
+    selected,
+    wallet: await fetchWallet(ctx, selected === '' ? undefined : selected),
   }
 }

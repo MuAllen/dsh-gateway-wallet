@@ -11,7 +11,7 @@ import {
   IconRefreshOutline14,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { Money, TokenBuckets, WalletPayload, WalletSnapshot } from '../shared.ts'
+import type { AccountListItem, Money, TokenBuckets, WalletBundle, WalletError, WalletPayload, WalletSnapshot } from '../shared.ts'
 
 type SeatProps = PropsRuntime<'sidebar.footer.action'>
 
@@ -58,6 +58,10 @@ const CSS = [
   '.gww_ok{color:var(--dsw-alias-state-success-primary)}',
   '.gww_footer{color:var(--dsw-alias-label-caption);border-top:1px solid var(--dsw-alias-border-l1);margin-top:14px;padding-top:8px;font-size:11px;line-height:16px;font-variant-numeric:tabular-nums}',
   '.gww_retry{color:var(--dsw-alias-label-secondary);cursor:pointer;background:0 0;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;margin-top:8px;padding:3px 10px;font:inherit;font-size:12px}',
+  '.gww_picker{display:flex;align-items:center;gap:8px;margin:0 0 12px}',
+  '.gww_pickerLabel{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px;flex:none}',
+  '.gww_select{flex:1;min-width:0;color:var(--dsw-alias-label-secondary);background:0 0;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;padding:4px 6px;font:inherit;font-size:12px}',
+  '.gww_select:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}',
 ].join('')
 
 function ensureCss(): void {
@@ -113,10 +117,55 @@ function schemeLabel(scheme: WalletSnapshot['scheme']): string {
   return '中转站'
 }
 
-async function loadWallet(signal: AbortSignal): Promise<WalletPayload> {
-  const response = await fetch(PATH, { headers: { accept: 'application/json' }, signal })
+async function loadWallet(route: string | undefined, signal: AbortSignal): Promise<WalletPayload> {
+  const query = route !== undefined && route !== '' ? `?route=${encodeURIComponent(route)}` : ''
+  const response = await fetch(PATH + query, { headers: { accept: 'application/json' }, signal })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   return response.json() as Promise<WalletPayload>
+}
+
+function isBundle(value: WalletPayload | undefined): value is WalletBundle {
+  return value !== undefined && 'accounts' in value
+}
+
+function isWalletError(value: WalletPayload | undefined): value is WalletError {
+  return value !== undefined && 'ok' in value && value.ok === false
+}
+
+function AccountPicker({
+  accounts,
+  selected,
+  onSelect,
+}: {
+  accounts: AccountListItem[]
+  selected: string
+  onSelect: (route: string) => void
+}) {
+  if (accounts.length <= 1) return null
+  return (
+    <label className="gww_picker">
+      <span className="gww_pickerLabel">账户</span>
+      <select
+        className="gww_select"
+        value={selected}
+        onChange={event => onSelect(event.target.value)}
+      >
+        {accounts.map(account => {
+          const bits = [
+            account.displayName,
+            account.isCurrent ? '当前' : undefined,
+            account.hasCredential ? account.keyHint : '无密钥',
+            account.host,
+          ].filter(value => value !== undefined && value !== '')
+          return (
+            <option key={account.route} value={account.route}>
+              {bits.join(' · ')}
+            </option>
+          )
+        })}
+      </select>
+    </label>
+  )
 }
 
 function BucketRows({ title, buckets }: { title: string; buckets: TokenBuckets }) {
@@ -145,38 +194,58 @@ function BucketRows({ title, buckets }: { title: string; buckets: TokenBuckets }
 
 function WalletBody({
   snapshot,
-  payload,
+  wallet,
   error,
+  accounts,
+  selected,
+  onSelect,
   onRetry,
 }: {
   snapshot: WalletSnapshot | undefined
-  payload: WalletPayload | undefined
+  wallet: WalletSnapshot | WalletError | undefined
   error: string | undefined
+  accounts: AccountListItem[]
+  selected: string
+  onSelect: (route: string) => void
   onRetry: () => void
 }) {
+  const picker = (
+    <AccountPicker accounts={accounts} selected={selected} onSelect={onSelect} />
+  )
   if (error !== undefined && snapshot === undefined) {
     return (
       <div>
+        {picker}
         <p className="gww_error">读不到账本。</p>
         <p className="gww_note">{error}</p>
         <button type="button" className="gww_retry" onClick={onRetry}>重试</button>
       </div>
     )
   }
-  if (payload?.ok === false) {
-    const message = payload.error === 'no-credential'
+  if (wallet?.ok === false) {
+    const message = wallet.error === 'no-credential'
       ? '这条路由没有密钥，查不了余额。'
-      : `账本：${payload.error}`
+      : wallet.error === 'unknown-account'
+        ? '名单里没有这条路由。'
+        : wallet.error === 'no-provider'
+          ? '还没有配置带地址的模型路由。'
+          : `账本：${wallet.error}`
     return (
       <div>
+        {picker}
         <p className="gww_warn">{message}</p>
-        {payload.detail !== undefined && <p className="gww_note">{payload.detail}</p>}
+        {wallet.detail !== undefined && <p className="gww_note">{wallet.detail}</p>}
         <button type="button" className="gww_retry" onClick={onRetry}>重试</button>
       </div>
     )
   }
   if (snapshot === undefined) {
-    return <p className="gww_note">读取中…</p>
+    return (
+      <div>
+        {picker}
+        <p className="gww_note">读取中…</p>
+      </div>
+    )
   }
 
   const who = [snapshot.displayName, schemeLabel(snapshot.scheme), snapshot.keyName]
@@ -185,6 +254,7 @@ function WalletBody({
 
   return (
     <div>
+      {picker}
       <div className="gww_who">{who}</div>
       <div className="gww_whoName">
         {snapshot.keyHint ?? ''}
@@ -262,23 +332,39 @@ function WalletBody({
 function WalletSeat({ wide, useSessions }: SeatProps) {
   ensureCss()
   const [open, setOpen] = useState(false)
-  const [payload, setPayload] = useState<WalletPayload | undefined>(undefined)
+  const [inspectRoute, setInspectRoute] = useState<string | undefined>(undefined)
+  const [bundle, setBundle] = useState<WalletBundle | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   const [nonce, setNonce] = useState(0)
   const [busy, setBusy] = useState(false)
   const [anchor, setAnchor] = useState<{ left: number; bottom: number } | undefined>(undefined)
+  const [badgeRemaining, setBadgeRemaining] = useState('')
   const root = useRef<HTMLDivElement>(null)
   const running = useSessions(state => state.ids.some(id => state.byId[id]?.running === true))
 
   useEffect(() => {
     const controller = new AbortController()
     setBusy(true)
-    loadWallet(controller.signal).then(
+    loadWallet(inspectRoute, controller.signal).then(
       (data) => {
         if (controller.signal.aborted) return
-        setPayload(data)
+        if (isWalletError(data)) {
+          setError(data.error)
+          setBusy(false)
+          return
+        }
+        if (!isBundle(data)) {
+          setError('unexpected response')
+          setBusy(false)
+          return
+        }
+        setBundle(data)
         setError(undefined)
         setBusy(false)
+        const currentRoute = data.accounts.find(account => account.isCurrent)?.route
+        if (data.wallet.ok === true && (currentRoute === undefined || data.wallet.route === currentRoute)) {
+          setBadgeRemaining(data.wallet.unlimited === true ? '不限' : fmtMoney(data.wallet.remaining))
+        }
       },
       (err: unknown) => {
         if (controller.signal.aborted) return
@@ -287,7 +373,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
       },
     )
     return () => controller.abort()
-  }, [nonce])
+  }, [nonce, inspectRoute])
 
   useEffect(() => {
     if (!open) return undefined
@@ -327,13 +413,10 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
     return () => window.removeEventListener('resize', place)
   }, [open])
 
-  const snapshot: WalletSnapshot | undefined = payload?.ok === true ? payload : undefined
-  const badgeValue = snapshot?.unlimited === true
-    ? '不限'
-    : snapshot !== undefined
-      ? fmtMoney(snapshot.remaining)
-      : ''
+  const snapshot: WalletSnapshot | undefined = bundle?.wallet.ok === true ? bundle.wallet : undefined
+  const badgeValue = badgeRemaining
   const reload = (): void => { if (!busy) setNonce(n => n + 1) }
+  const selected = inspectRoute ?? bundle?.selected ?? ''
 
   return (
     <div ref={root} className={wide === false ? 'gww_layer gww_rail' : 'gww_layer'}>
@@ -380,7 +463,15 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
             </div>
           </div>
           <div className="gww_body">
-            <WalletBody snapshot={snapshot} payload={payload} error={error} onRetry={reload} />
+            <WalletBody
+              snapshot={snapshot}
+              wallet={bundle?.wallet}
+              error={error}
+              accounts={bundle?.accounts ?? []}
+              selected={selected}
+              onSelect={setInspectRoute}
+              onRetry={reload}
+            />
           </div>
         </div>
       )}

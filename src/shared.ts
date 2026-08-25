@@ -66,4 +66,23 @@ export interface WalletError {
   detail?: string
 }
 
-export type WalletPayload = WalletSnapshot | WalletError
+/** 浏览器可见的账户条目。完整 key 不会出现。 */
+export interface AccountListItem {
+  route: string
+  displayName: string
+  origin: string
+  host: string
+  keyHint?: string
+  hasCredential: boolean
+  /** DSH 当前默认模型所在的路由。 */
+  isCurrent: boolean
+}
+
+/** 一次回环响应：账户名单 + 选中路由的账本。 */
+export interface WalletBundle {
+  accounts: AccountListItem[]
+  selected: string
+  wallet: WalletSnapshot | WalletError
+}
+
+export type WalletPayload = WalletBundle | WalletError

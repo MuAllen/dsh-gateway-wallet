@@ -3,7 +3,7 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
-import { fetchWallet } from './snapshot.ts'
+import { fetchBundle } from './snapshot.ts'
 import type { WalletPayload } from './shared.ts'
 
 export const WALLET_PATH = '/api/gateway-wallet'
@@ -20,6 +20,16 @@ function hostNameOf(header: unknown): string {
   if (header.startsWith('[')) return header.slice(1, header.indexOf(']'))
   const colon = header.lastIndexOf(':')
   return colon === -1 ? header : header.slice(0, colon)
+}
+
+function routeQuery(req: IncomingMessage): string | undefined {
+  try {
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+    const route = url.searchParams.get('route')
+    return route !== null && route !== '' ? route : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function screenRequest(req: IncomingMessage): { status: number; body: WalletPayload } | undefined {
@@ -56,7 +66,7 @@ export function registerWalletRoute(ctx: Context): boolean {
           return
         }
         try {
-          send(res, 200, await fetchWallet(ctx))
+          send(res, 200, await fetchBundle(ctx, routeQuery(req)))
         } catch (error) {
           ctx.logger?.('dsh-gateway-wallet')?.warn?.('wallet route failed: %s', error instanceof Error ? error.message : error)
           send(res, 500, { ok: false, error: 'internal' })
