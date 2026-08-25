@@ -1,8 +1,9 @@
 /**
- * 从当前 DSH 默认路由对应的 NewAPI 中转站拉真实余额 / 今日消费。
- * 凭据只在本次请求的 Authorization 头里用，用完即弃。
+ * 从当前路由对应中转站拉真实余额 / 今日消费。
+ * 先按无密钥指纹认程序，再走对应账本；凭据只在 Authorization 头里用，用完即弃。
  */
 import type { Context } from '@deepseek-ai/cordis'
+import { fingerprintOrigin } from './fingerprint.ts'
 import type { AccountListItem, Money, TokenBuckets, WalletBundle, WalletError, WalletSnapshot } from './shared.ts'
 
 const DEFAULT_QUOTA_PER_UNIT = 500_000
@@ -405,62 +406,74 @@ export async function fetchWallet(ctx: Context, route?: string): Promise<WalletS
   }
 
   try {
-    const sub2 = await getJson(account.origin, '/v1/usage', apiKey)
-    if (sub2.status >= 200 && sub2.status < 300) {
-      return {
-        ok: true,
-        fetchedAt: Date.now(),
-        route: account.route,
-        displayName: account.displayName,
-        origin: account.origin,
-        keyHint: maskKey(apiKey),
-        ...account.model !== undefined ? { model: account.model } : {},
-        ...parseSub2Usage(sub2.body),
-      }
+    const finger = await fingerprintOrigin(account.origin)
+    if (finger.software === 'unknown') {
+      return { ok: false, error: 'unknown-software', detail: finger.reason ?? account.origin }
     }
-
-    const units = await readUnits(account.origin)
-    let usage = await getJson(account.origin, '/api/usage/token/', apiKey)
-    if (!isNewApiOk(usage.status, usage.body)) {
-      usage = await getJson(account.origin, '/api/usage/token', apiKey)
-    }
-    if (!isNewApiOk(usage.status, usage.body)) {
-      return { ok: false, error: `http-${usage.status}`, detail: `${account.origin}/v1/usage` }
-    }
-    const data = (usage.body.data ?? {}) as Record<string, unknown>
-    const granted = num(data.total_granted)
-    const usedQuota = num(data.total_used)
-    const available = num(data.total_available)
-    const unlimited = data.unlimited_quota === true
-    const keyName = typeof data.name === 'string' && data.name !== '' ? data.name : undefined
-
-    const remaining = unlimited ? undefined : quotaToMoney(available ?? (granted !== undefined && usedQuota !== undefined ? granted - usedQuota : undefined), units)
-    const used = quotaToMoney(usedQuota, units)
-
-    const todayResult = await readToday(account.origin, apiKey, units)
-    const todayOk = !('reason' in todayResult)
-
-    return {
-      ok: true,
-      fetchedAt: Date.now(),
-      route: account.route,
-      displayName: account.displayName,
-      origin: account.origin,
-      ...account.model !== undefined ? { model: account.model } : {},
-      ...keyName !== undefined ? { keyName } : {},
-      keyHint: maskKey(apiKey),
-      ...remaining !== undefined ? { remaining } : {},
-      ...used !== undefined ? { used } : {},
-      todayAvailable: todayOk,
-      ...todayOk ? { today: { ...todayResult.money, ...todayResult.requests !== undefined ? { requests: todayResult.requests } : {} } } : {},
-      ...!todayOk ? { todayUnavailableReason: todayResult.reason } : {},
-      scheme: 'newapi',
-      unlimited,
-      isAvailable: unlimited || (available ?? 0) > 0,
-    }
+    if (finger.software === 'sub2api') return readSub2(account, apiKey)
+    return readNewApi(account, apiKey)
   } catch (error) {
     const name = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable'
     return { ok: false, error: name, detail: account.origin }
+  }
+}
+
+async function readSub2(account: RouteAccount, apiKey: string): Promise<WalletSnapshot | WalletError> {
+  const sub2 = await getJson(account.origin, '/v1/usage', apiKey)
+  if (sub2.status < 200 || sub2.status >= 300) {
+    return { ok: false, error: `http-${sub2.status}`, detail: `${account.origin}/v1/usage` }
+  }
+  return {
+    ok: true,
+    fetchedAt: Date.now(),
+    route: account.route,
+    displayName: account.displayName,
+    origin: account.origin,
+    keyHint: maskKey(apiKey),
+    ...account.model !== undefined ? { model: account.model } : {},
+    ...parseSub2Usage(sub2.body),
+  }
+}
+
+async function readNewApi(account: RouteAccount, apiKey: string): Promise<WalletSnapshot | WalletError> {
+  const units = await readUnits(account.origin)
+  let usage = await getJson(account.origin, '/api/usage/token/', apiKey)
+  if (!isNewApiOk(usage.status, usage.body)) {
+    usage = await getJson(account.origin, '/api/usage/token', apiKey)
+  }
+  if (!isNewApiOk(usage.status, usage.body)) {
+    return { ok: false, error: `http-${usage.status}`, detail: `${account.origin}/api/usage/token/` }
+  }
+  const data = (usage.body.data ?? {}) as Record<string, unknown>
+  const granted = num(data.total_granted)
+  const usedQuota = num(data.total_used)
+  const available = num(data.total_available)
+  const unlimited = data.unlimited_quota === true
+  const keyName = typeof data.name === 'string' && data.name !== '' ? data.name : undefined
+
+  const remaining = unlimited ? undefined : quotaToMoney(available ?? (granted !== undefined && usedQuota !== undefined ? granted - usedQuota : undefined), units)
+  const used = quotaToMoney(usedQuota, units)
+
+  const todayResult = await readToday(account.origin, apiKey, units)
+  const todayOk = !('reason' in todayResult)
+
+  return {
+    ok: true,
+    fetchedAt: Date.now(),
+    route: account.route,
+    displayName: account.displayName,
+    origin: account.origin,
+    ...account.model !== undefined ? { model: account.model } : {},
+    ...keyName !== undefined ? { keyName } : {},
+    keyHint: maskKey(apiKey),
+    ...remaining !== undefined ? { remaining } : {},
+    ...used !== undefined ? { used } : {},
+    todayAvailable: todayOk,
+    ...todayOk ? { today: { ...todayResult.money, ...todayResult.requests !== undefined ? { requests: todayResult.requests } : {} } } : {},
+    ...!todayOk ? { todayUnavailableReason: todayResult.reason } : {},
+    scheme: 'newapi',
+    unlimited,
+    isAvailable: unlimited || (available ?? 0) > 0,
   }
 }
 

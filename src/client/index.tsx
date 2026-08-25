@@ -229,7 +229,9 @@ function WalletBody({
         ? '名单里没有这条路由。'
         : wallet.error === 'no-provider'
           ? '还没有配置带地址的模型路由。'
-          : `账本：${wallet.error}`
+          : wallet.error === 'unknown-software'
+            ? '认不出这个站跑的是哪套账本，不会硬猜数字。'
+            : `账本：${wallet.error}`
     return (
       <div>
         {picker}

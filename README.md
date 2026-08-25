@@ -37,7 +37,7 @@ dsh plugin --profile web remove dsh-gateway-wallet
 | Sub2API（如部分国内中转） | `GET /v1/usage` | 余额、今日/累计实扣、token 桶 |
 | New API / One API 等分支 | `GET /api/usage/token/` | 额度与今日日志（站点开放时） |
 
-只使用你已经配给这条路由的普通 API key。认不出程序或站点关掉账本接口时，面板会说明原因，而不是填 0。
+只使用你已经配给这条路由的普通 API key。打开账本前会用不带密钥的 404/401 探测认出是 Sub2API 还是 New API；对不上的站点会说明原因，**不会按另一套程序换算额度**。
 
 ## 免责声明
 
