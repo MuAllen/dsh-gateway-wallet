@@ -10,6 +10,8 @@ const DEFAULT_QUOTA_PER_UNIT = 500_000
 const TIMEOUT_MS = 15_000
 const LOG_PAGE_SIZE = 100
 const LOG_MAX_PAGES = 20
+const DEEPSEEK_ORIGIN = 'https://api.deepseek.com'
+const DEEPSEEK_KEY_ENV = 'DEEPSEEK_API_KEY'
 
 export interface RouteAccount {
   route: string
@@ -39,6 +41,18 @@ function originOf(baseUrl: unknown): string | undefined {
   } catch {
     return undefined
   }
+}
+
+function isOfficialDeepSeekOrigin(origin: string): boolean {
+  try {
+    return new URL(origin).hostname.toLowerCase() === 'api.deepseek.com'
+  } catch {
+    return false
+  }
+}
+
+function isOfficialDeepSeekProvider(provider: string): boolean {
+  return provider === 'deepseek-official' || provider === 'deepseek'
 }
 
 function readAt(section: unknown, path: readonly string[]): unknown {
@@ -319,17 +333,20 @@ export function listRouteAccounts(ctx: Context): RouteAccount[] {
     try {
       profile = readAt(settings.get(entry.settingsNs), entry.settingsPath ?? [])
     } catch {
-      continue
+      profile = undefined
     }
-    const origin = originOf((profile as { baseURL?: string; baseUrl?: string } | undefined)?.baseURL
-      ?? (profile as { baseUrl?: string } | undefined)?.baseUrl)
+    const typed = profile as { baseURL?: string; baseUrl?: string; apiKeyEnv?: string } | undefined
+    let origin = originOf(typed?.baseURL ?? typed?.baseUrl)
+    if (origin === undefined && isOfficialDeepSeekProvider(entry.provider)) origin = DEEPSEEK_ORIGIN
     if (origin === undefined) continue
-    const apiKeyEnv = (profile as { apiKeyEnv?: string } | undefined)?.apiKeyEnv
+    const apiKeyEnv = typeof typed?.apiKeyEnv === 'string' && typed.apiKeyEnv !== ''
+      ? typed.apiKeyEnv
+      : isOfficialDeepSeekProvider(entry.provider) ? DEEPSEEK_KEY_ENV : undefined
     out.push({
       route: entry.provider,
       displayName: entry.displayName ?? entry.provider,
       origin,
-      ...typeof apiKeyEnv === 'string' && apiKeyEnv !== '' ? { apiKeyEnv } : {},
+      ...apiKeyEnv !== undefined ? { apiKeyEnv } : {},
     })
   }
   return out
@@ -406,6 +423,7 @@ export async function fetchWallet(ctx: Context, route?: string): Promise<WalletS
   }
 
   try {
+    if (isOfficialDeepSeekOrigin(account.origin)) return readDeepSeek(account, apiKey)
     const finger = await fingerprintOrigin(account.origin)
     if (finger.software === 'unknown') {
       return { ok: false, error: 'unknown-software', detail: finger.reason ?? account.origin }
@@ -415,6 +433,37 @@ export async function fetchWallet(ctx: Context, route?: string): Promise<WalletS
   } catch (error) {
     const name = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'unreachable'
     return { ok: false, error: name, detail: account.origin }
+  }
+}
+
+async function readDeepSeek(account: RouteAccount, apiKey: string): Promise<WalletSnapshot | WalletError> {
+  const { status, body } = await getJson(account.origin, '/user/balance', apiKey)
+  if (status < 200 || status >= 300) {
+    return { ok: false, error: `http-${status}`, detail: `${account.origin}/user/balance` }
+  }
+  const infos = Array.isArray(body.balance_infos) ? body.balance_infos : []
+  const rows = infos.filter(row => row !== null && typeof row === 'object') as Array<Record<string, unknown>>
+  const cny = rows.find(row => String(row.currency ?? '').toUpperCase() === 'CNY')
+  const raw = cny ?? rows[0]
+  const currency = typeof raw?.currency === 'string' ? raw.currency : 'CNY'
+  const total = num(raw?.total_balance)
+  if (total === undefined) {
+    return { ok: false, error: 'unparsed-balance', detail: `${account.origin}/user/balance` }
+  }
+  const remaining = moneyFromAmount(total, currency)
+  return {
+    ok: true,
+    fetchedAt: Date.now(),
+    route: account.route,
+    displayName: account.displayName,
+    origin: account.origin,
+    keyHint: maskKey(apiKey),
+    ...account.model !== undefined ? { model: account.model } : {},
+    scheme: 'deepseek',
+    ...remaining !== undefined ? { remaining } : {},
+    todayAvailable: false,
+    todayUnavailableReason: 'official-no-today',
+    isAvailable: body.is_available === true || (total !== undefined && total > 0),
   }
 }
 

@@ -114,6 +114,7 @@ function hostOf(origin: string): string {
 function schemeLabel(scheme: WalletSnapshot['scheme']): string {
   if (scheme === 'sub2api') return 'Sub2API'
   if (scheme === 'newapi') return 'New API'
+  if (scheme === 'deepseek') return 'DeepSeek 官方'
   return '中转站'
 }
 
@@ -231,7 +232,9 @@ function WalletBody({
           ? '还没有配置带地址的模型路由。'
           : wallet.error === 'unknown-software'
             ? '认不出这个站跑的是哪套账本，不会硬猜数字。'
-            : `账本：${wallet.error}`
+            : wallet.error === 'unparsed-balance'
+              ? '官方余额接口返回了，但对不上已知字段。'
+              : `账本：${wallet.error}`
     return (
       <div>
         {picker}
@@ -288,7 +291,11 @@ function WalletBody({
       {snapshot.todayList !== undefined && (
         <p className="gww_note">今日标价 {fmtMoney(snapshot.todayList)}，上面是站点实扣。</p>
       )}
-      {!snapshot.todayAvailable && snapshot.todayUnavailableReason !== undefined && (
+      {!snapshot.todayAvailable && snapshot.todayUnavailableReason === 'official-no-today' && (
+        <p className="gww_note">官方余额接口不提供今日消费。</p>
+      )}
+      {!snapshot.todayAvailable && snapshot.todayUnavailableReason !== undefined
+        && snapshot.todayUnavailableReason !== 'official-no-today' && (
         <p className="gww_note">站点没有开放今日日志。</p>
       )}
       {snapshot.isAvailable === false && (

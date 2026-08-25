@@ -40,7 +40,7 @@ export interface WalletSnapshot {
   keyHint?: string
   origin: string
   /** 认出的账本程序。 */
-  scheme?: 'sub2api' | 'newapi'
+  scheme?: 'sub2api' | 'newapi' | 'deepseek'
   /** 站点套餐名。 */
   plan?: string
   /** 剩余余额。 */
