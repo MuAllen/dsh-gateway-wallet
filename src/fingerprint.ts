@@ -105,6 +105,9 @@ export async function fingerprintOrigin(origin: string): Promise<Fingerprint> {
     statuses[path] = await probeStatus(origin, path)
   }))
   const result = score(statuses)
-  cache.set(origin, result)
+  // 只记住认出的程序。连不上或对不上的若也缓存，一次网络抖动就会整段会话都显示「连不上」。
+  if (result.software === 'sub2api' || result.software === 'newapi') {
+    cache.set(origin, result)
+  }
   return result
 }
