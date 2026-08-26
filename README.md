@@ -14,6 +14,20 @@ DeepSeek Harness 侧边栏左下角的「站点余额」：点开后显示**当�
 
 完整 API Key 只在本机 Host 进程里用作 `Authorization` 头，不会进入浏览器，也不会发到本插件作者的任何服务器。
 
+## 截图
+
+侧边栏入口，金额跟随当前选中的账户：
+
+![侧边栏入口](assets/sidebar.png)
+
+点开后的站点账本（上半：账户与金额）：
+
+![面板上半](assets/panel-top.png)
+
+同一面板下滑（下半：用量、速率、读取来源）：
+
+![面板下半](assets/panel-bottom.png)
+
 ## 安装
 
 需要 DeepSeek Harness 的 `web` profile。

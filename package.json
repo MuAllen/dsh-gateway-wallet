@@ -20,7 +20,8 @@
     "src",
     "cordis.patch.yml",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "assets"
   ],
   "engines": {
     "node": ">=22"
