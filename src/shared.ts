@@ -45,8 +45,20 @@ export interface WalletSnapshot {
   plan?: string
   /** 剩余余额。 */
   remaining?: Money
+  /** 官方赠金；站点没给则省略。 */
+  granted?: Money
+  /** 官方充值余额；站点没给则省略。 */
+  toppedUp?: Money
+  /** 同一接口里其它币种的总余额。 */
+  otherBalances?: Array<{ currency: string; remaining: Money }>
   /** 这把 key 累计已用（实扣）。 */
   used?: Money
+  /** 令牌到期时间（毫秒）。未返回或永不过期则省略。 */
+  expiresAt?: number
+  /** 站点用 0/-1 表示永不过期。 */
+  neverExpires?: boolean
+  /** 令牌允许的模型；仅站点开启了限制时才有。 */
+  modelLimits?: string[]
   /** 今日消费（实扣）。读不到则省略。 */
   today?: Money & { requests?: number }
   /** 今日标价；和实扣不同时才带上，用来看出折扣。 */

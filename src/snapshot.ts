@@ -96,6 +96,31 @@ function quotaToMoney(quota: number | undefined, units: QuotaUnits): Money | und
   }
 }
 
+function epochMs(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) return undefined
+  return value > 1e12 ? value : value * 1000
+}
+
+function parseModelLimits(data: Record<string, unknown>): string[] | undefined {
+  if (data.model_limits_enabled !== true) return undefined
+  const raw = data.model_limits
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const names = raw.split(/[,，]/).map(part => part.trim()).filter(part => part !== '')
+    return names.length > 0 ? names : undefined
+  }
+  if (Array.isArray(raw)) {
+    const names = raw.filter(item => typeof item === 'string' && item !== '') as string[]
+    return names.length > 0 ? names : undefined
+  }
+  if (raw !== null && typeof raw === 'object') {
+    const names = Object.entries(raw as Record<string, unknown>)
+      .filter(([, allowed]) => allowed === true || allowed === 1 || allowed === 'true')
+      .map(([name]) => name)
+    return names.length > 0 ? names : undefined
+  }
+  return undefined
+}
+
 function moneyFromAmount(amount: number | undefined, unit: string | undefined): Money | undefined {
   if (amount === undefined) return undefined
   const normalized = (unit ?? 'USD').toUpperCase()
@@ -455,6 +480,17 @@ async function readDeepSeek(account: RouteAccount, apiKey: string): Promise<Wall
     return { ok: false, error: 'unparsed-balance', detail: `${account.origin}/user/balance` }
   }
   const remaining = moneyFromAmount(total, currency)
+  const granted = moneyFromAmount(num(raw?.granted_balance), currency)
+  const toppedUp = moneyFromAmount(num(raw?.topped_up_balance), currency)
+  const otherBalances = rows.flatMap(row => {
+    if (row === raw) return []
+    const otherCurrency = typeof row.currency === 'string' ? row.currency : undefined
+    const otherTotal = num(row.total_balance)
+    const money = moneyFromAmount(otherTotal, otherCurrency)
+    return otherCurrency !== undefined && money !== undefined
+      ? [{ currency: otherCurrency, remaining: money }]
+      : []
+  })
   return {
     ok: true,
     fetchedAt: Date.now(),
@@ -465,6 +501,9 @@ async function readDeepSeek(account: RouteAccount, apiKey: string): Promise<Wall
     ...account.model !== undefined ? { model: account.model } : {},
     scheme: 'deepseek',
     ...remaining !== undefined ? { remaining } : {},
+    ...granted !== undefined ? { granted } : {},
+    ...toppedUp !== undefined ? { toppedUp } : {},
+    ...otherBalances.length > 0 ? { otherBalances } : {},
     todayAvailable: false,
     todayUnavailableReason: 'official-no-today',
     isAvailable: body.is_available === true || (total !== undefined && total > 0),
@@ -509,6 +548,10 @@ async function readNewApi(account: RouteAccount, apiKey: string): Promise<Wallet
   const now = Date.now()
   const todayResult = await readWindow(account.origin, apiKey, units, localDayStartMs(now), now)
   const todayOk = !('reason' in todayResult)
+  const expiresRaw = num(data.expires_at)
+  const expiresAt = epochMs(expiresRaw)
+  const neverExpires = expiresRaw === 0 || expiresRaw === -1
+  const modelLimits = parseModelLimits(data)
 
   return {
     ok: true,
@@ -524,6 +567,9 @@ async function readNewApi(account: RouteAccount, apiKey: string): Promise<Wallet
     todayAvailable: todayOk,
     ...todayOk ? { today: { ...todayResult.money, ...todayResult.requests !== undefined ? { requests: todayResult.requests } : {} } } : {},
     ...!todayOk ? { todayUnavailableReason: todayResult.reason } : {},
+    ...expiresAt !== undefined ? { expiresAt } : {},
+    ...neverExpires ? { neverExpires: true } : {},
+    ...modelLimits !== undefined ? { modelLimits } : {},
     scheme: 'newapi',
     unlimited,
     isAvailable: unlimited || (available ?? 0) > 0,

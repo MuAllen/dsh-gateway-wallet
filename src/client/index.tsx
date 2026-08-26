@@ -60,6 +60,7 @@ const CSS = [
   '.gww_row:last-child{border-bottom:0}',
   '.gww_rowName{color:var(--dsw-alias-label-tertiary)}',
   '.gww_rowValue{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums}',
+  '.gww_rowValue[data-wrap]{white-space:normal;text-align:right;max-width:68%;word-break:break-all}',
   '.gww_note{color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px;margin:8px 0 0}',
   '.gww_error{color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px;margin:0}',
   '.gww_warn{color:var(--dsw-alias-state-warn-primary);font-size:12px;line-height:18px;margin:8px 0 0}',
@@ -117,6 +118,10 @@ function isLowBalance(money: Money | undefined, unlimited?: boolean): boolean {
     return money.usd < LOW_USD
   }
   return false
+}
+
+function expireLabel(at: number): string {
+  return new Date(at).toLocaleString()
 }
 
 function agoLabel(at: number, now = Date.now()): string {
@@ -351,6 +356,28 @@ function WalletBody({
       {snapshot.todayList !== undefined && (
         <p className="gww_note">今日标价 {fmtMoney(snapshot.todayList)}，上面是站点实扣。</p>
       )}
+      {(snapshot.granted !== undefined || snapshot.toppedUp !== undefined) && (
+        <div className="gww_section">
+          <div className="gww_sectionTitle">余额构成</div>
+          <div className="gww_rows">
+            {snapshot.granted !== undefined && (
+              <div className="gww_row">
+                <span className="gww_rowName">赠金</span>
+                <span className="gww_rowValue">{fmtMoney(snapshot.granted)}</span>
+              </div>
+            )}
+            {snapshot.toppedUp !== undefined && (
+              <div className="gww_row">
+                <span className="gww_rowName">充值</span>
+                <span className="gww_rowValue">{fmtMoney(snapshot.toppedUp)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {snapshot.otherBalances?.map(item => (
+        <p key={item.currency} className="gww_note">另有 {item.currency} {fmtMoney(item.remaining)}</p>
+      ))}
       {!snapshot.todayAvailable && snapshot.todayUnavailableReason === 'official-no-today' && (
         <p className="gww_note">官方余额接口不提供今日消费。</p>
       )}
@@ -363,6 +390,32 @@ function WalletBody({
       )}
       {snapshot.isAvailable === true && fail === undefined && (
         <p className="gww_note gww_ok">账户可用</p>
+      )}
+
+      {(snapshot.neverExpires === true || snapshot.expiresAt !== undefined || snapshot.modelLimits !== undefined) && (
+        <div className="gww_section">
+          <div className="gww_sectionTitle">令牌</div>
+          <div className="gww_rows">
+            {snapshot.neverExpires === true && (
+              <div className="gww_row">
+                <span className="gww_rowName">到期</span>
+                <span className="gww_rowValue">永不过期</span>
+              </div>
+            )}
+            {snapshot.expiresAt !== undefined && (
+              <div className="gww_row">
+                <span className="gww_rowName">到期</span>
+                <span className="gww_rowValue">{expireLabel(snapshot.expiresAt)}</span>
+              </div>
+            )}
+            {snapshot.modelLimits !== undefined && (
+              <div className="gww_row">
+                <span className="gww_rowName">可用模型</span>
+                <span className="gww_rowValue" data-wrap="">{snapshot.modelLimits.join(' · ')}</span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {snapshot.todayTokens !== undefined && (
