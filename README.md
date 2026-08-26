@@ -1,8 +1,8 @@
 # dsh-gateway-wallet
 
-DeepSeek Harness 侧边栏左下角的「中转站钱包」：点开后显示**当前默认路由**在中转站账本上的真实余额和今日实扣，不是本地 token × 单价的估算。
+DeepSeek Harness 侧边栏左下角的「站点余额」：点开后显示**当前路由**在站点账本上的剩余额度和今日实扣，覆盖国内中转（Sub2API / New API）和 DeepSeek 官方，不是本地 token × 单价的估算。
 
-和 [TokenLedger](https://github.com/zh667/TokenLedger)（用量账本）是互补关系：用量账本记的是本机会话里的 token；本插件读的是站点给这把 key 的钱包。
+和 [TokenLedger](https://github.com/zh667/TokenLedger)（用量账本）是互补关系：用量账本记的是本机会话里的 token；本插件读的是站点给这把 key 的余额。
 
 显示内容（站点有返回才出现对应行）：
 
@@ -22,7 +22,7 @@ DeepSeek Harness 侧边栏左下角的「中转站钱包」：点开后显示**�
 dsh plugin --profile web add github:MuAllen/dsh-gateway-wallet
 ```
 
-重启已经在跑的 DSH，浏览器硬刷新。侧边栏底部会出现「中转站钱包」。
+重启已经在跑的 DSH，浏览器硬刷新。侧边栏底部会出现「站点余额」。
 
 升级或卸载：
 

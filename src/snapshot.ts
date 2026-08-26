@@ -1,5 +1,5 @@
 /**
- * 从当前路由对应中转站拉真实余额 / 今日消费。
+ * 从当前路由对应站点拉真实余额 / 今日消费。
  * 先按无密钥指纹认程序，再走对应账本；凭据只在 Authorization 头里用，用完即弃。
  */
 import type { Context } from '@deepseek-ai/cordis'

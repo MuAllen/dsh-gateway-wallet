@@ -1,7 +1,7 @@
 {
   "name": "dsh-gateway-wallet",
   "version": "0.1.0",
-  "description": "Sidebar wallet for DeepSeek Harness: live relay balance and today's actual spend for the current route",
+  "description": "Live remaining balance and actual spend from the provider for the current API key, not a local token estimate.",
   "type": "module",
   "license": "MIT",
   "author": "MuAllen",

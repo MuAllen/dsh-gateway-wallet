@@ -1,5 +1,5 @@
 /**
- * 侧边栏左下角入口：与「用量账本」同槽，点击弹出中转站真实账本。
+ * 侧边栏左下角入口：与「用量账本」同槽，点击弹出站点真实账本。
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
@@ -454,8 +454,8 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
         className="gww_badge"
         {...open ? { 'data-active': '' } : {}}
         {...low ? { 'data-low': '' } : {}}
-        title={low ? '中转站钱包 · 余额偏低' : '中转站钱包'}
-        aria-label={low ? '中转站钱包，余额偏低' : '中转站钱包'}
+        title={low ? '站点余额 · 偏低' : '站点余额'}
+        aria-label={low ? '站点余额，偏低' : '站点余额'}
         aria-expanded={open}
         onClick={() => setOpen(value => !value)}
       >
@@ -463,18 +463,18 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
           <IconApiOutline14 size={wide === false ? 16 : 14} />
           {low && <span className="gww_dot" aria-hidden="true" />}
         </span>
-        <span className="gww_badgeLabel">中转站钱包</span>
+        <span className="gww_badgeLabel">站点余额</span>
         <span className="gww_badgeValue">{badgeValue}</span>
       </button>
       {open && anchor !== undefined && (
         <div
           className="gww_panel"
           role="dialog"
-          aria-label="中转站钱包"
+          aria-label="站点余额"
           style={{ left: anchor.left, bottom: anchor.bottom }}
         >
           <div className="gww_header">
-            <span className="gww_title">中转站钱包</span>
+            <span className="gww_title">站点余额</span>
             <div className="gww_headerActions">
               <button
                 type="button"

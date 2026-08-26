@@ -1,7 +1,7 @@
 /**
  * dsh-gateway-wallet Host 端。
  *
- * 读取已配置路由的中转站账本：余额、今日消费、当前令牌名；可按路由切换。
+ * 读取已配置路由的站点账本：余额、今日消费、当前令牌名；可按路由切换。
  * 不改会话、不碰请求热路径。
  */
 import type { Context } from '@deepseek-ai/cordis'
