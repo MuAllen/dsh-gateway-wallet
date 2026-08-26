@@ -20,9 +20,10 @@ const REFRESH_MS = 45_000
 const STYLE_ID = 'dsh-gateway-wallet/panel.css'
 
 const CSS = [
-  "div:has(> [data-slot='sidebar.footer.action']){flex-wrap:wrap}",
+  "div:has(> [data-slot='sidebar.footer.action']){flex-wrap:wrap;gap:6px}",
+  "[data-slot='sidebar.footer.action']:has(.gww_rail){flex:none;width:36px}",
   '.gww_layer{flex:0 0 100%;min-width:0;align-items:center;height:49px;margin:8px 0 0;display:flex;position:relative}',
-  '.gww_badge{width:100%;min-width:0;height:49px;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;padding:0 8px 0 6px;font-family:inherit;font-size:14px;display:inline-flex;overflow:hidden}',
+  '.gww_badge{width:100%;min-width:0;height:49px;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;padding:0 8px 0 6px;font-family:inherit;font-size:14px;display:inline-flex;position:relative}',
   '.gww_badge:hover{background:var(--dsw-alias-interactive-bg-hover-solid)}',
   '.gww_badge[data-active]{background:var(--dsw-alias-interactive-bg-hover)}',
   '.gww_badgeIcon{flex:none;display:inline-flex;align-items:center;position:relative}',
@@ -31,8 +32,10 @@ const CSS = [
   '.gww_badgeValue{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;flex:none;margin-left:auto;font-size:12px;line-height:16px}',
   '.gww_badge[data-low] .gww_badgeValue{color:var(--dsw-alias-state-warn-primary)}',
   '.gww_stat[data-low] .gww_statValue{color:var(--dsw-alias-state-warn-primary)}',
-  '.gww_layer.gww_rail{flex:none;width:36px;height:36px;margin:0}',
-  '.gww_layer.gww_rail .gww_badge{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;padding:0}',
+  '.gww_layer.gww_rail{flex:none;width:36px;height:36px;margin:0;overflow:visible}',
+  '.gww_layer.gww_rail .gww_badge{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;padding:0;overflow:visible}',
+  '.gww_layer.gww_rail .gww_badgeIcon{position:static}',
+  '.gww_layer.gww_rail .gww_dot{top:1px;right:1px}',
   '.gww_layer.gww_rail .gww_badgeLabel,.gww_layer.gww_rail .gww_badgeValue{display:none}',
   '.gww_panel{z-index:30;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base);width:380px;max-width:calc(100vw - 24px);max-height:76vh;box-shadow:var(--dsw-shadow-lv2);border-radius:12px;flex-direction:column;display:flex;position:fixed;overflow:hidden}',
   '.gww_header{box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-border-l2);flex:none;justify-content:space-between;align-items:center;min-height:44px;padding:10px 12px;display:flex;gap:8px}',
@@ -490,14 +493,16 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
       const rect = root.current?.getBoundingClientRect()
       if (rect === undefined) return
       setAnchor({
-        left: Math.min(rect.left, Math.max(12, window.innerWidth - 404)),
+        left: wide === false
+          ? Math.min(rect.right + 8, Math.max(12, window.innerWidth - 404))
+          : Math.min(rect.left, Math.max(12, window.innerWidth - 404)),
         bottom: window.innerHeight - rect.top + 8,
       })
     }
     place()
     window.addEventListener('resize', place)
     return () => window.removeEventListener('resize', place)
-  }, [open])
+  }, [open, wide])
 
   const selected = inspectRoute ?? bundle?.selected ?? ''
   const live = bundle?.wallet.ok === true ? bundle.wallet : undefined
@@ -543,7 +548,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
         onClick={() => setOpen(value => !value)}
       >
         <span className="gww_badgeIcon">
-          <IconApiOutline14 size={wide === false ? 16 : 14} />
+          <IconApiOutline14 size={wide === false ? 18 : 14} />
           {low && <span className="gww_dot" aria-hidden="true" />}
         </span>
         <span className="gww_badgeLabel">站点余额</span>
