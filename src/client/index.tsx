@@ -42,6 +42,8 @@ const CSS = [
   '.gww_iconButton:hover{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-interactive-bg-hover)}',
   '.gww_iconButton[data-busy]{opacity:.5;cursor:default}',
   '.gww_body{flex:1;min-height:0;padding:12px 14px 14px;overflow-y:auto}',
+  '.gww_content[data-loading]{opacity:.45}',
+  '.gww_badgeValue[data-wait]{opacity:.55}',
   '.gww_who{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}',
   '.gww_whoName{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
   '.gww_stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}',
@@ -217,6 +219,7 @@ function WalletBody({
   error,
   accounts,
   selected,
+  loading,
   onSelect,
   onRetry,
 }: {
@@ -225,12 +228,21 @@ function WalletBody({
   error: string | undefined
   accounts: AccountListItem[]
   selected: string
+  loading: 'block' | 'dim' | false
   onSelect: (route: string) => void
   onRetry: () => void
 }) {
   const picker = (
     <AccountPicker accounts={accounts} selected={selected} onSelect={onSelect} />
   )
+  if (loading === 'block') {
+    return (
+      <div>
+        {picker}
+        <p className="gww_note">读取中…</p>
+      </div>
+    )
+  }
   if (error !== undefined && snapshot === undefined) {
     return (
       <div>
@@ -278,6 +290,8 @@ function WalletBody({
   return (
     <div>
       {picker}
+      {loading === 'dim' && <p className="gww_note">读取中…</p>}
+      <div className="gww_content" {...loading === 'dim' ? { 'data-loading': '' } : {}}>
       <div className="gww_who">{who}</div>
       <div className="gww_whoName">
         {snapshot.keyHint ?? ''}
@@ -350,7 +364,8 @@ function WalletBody({
       )}
 
       <div className="gww_footer" title={new Date(snapshot.fetchedAt).toLocaleString()}>
-        {hostOf(snapshot.origin)} · {agoLabel(snapshot.fetchedAt)}从站点账本读取
+        {hostOf(snapshot.origin)} · {loading === 'dim' ? '读取中…' : `${agoLabel(snapshot.fetchedAt)}从站点账本读取`}
+      </div>
       </div>
     </div>
   )
@@ -364,6 +379,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
   const [error, setError] = useState<string | undefined>(undefined)
   const [nonce, setNonce] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [pending, setPending] = useState<'switch' | 'manual' | 'auto' | undefined>(undefined)
   const [anchor, setAnchor] = useState<{ left: number; bottom: number } | undefined>(undefined)
   const [badgeRemaining, setBadgeRemaining] = useState('')
   const root = useRef<HTMLDivElement>(null)
@@ -372,6 +388,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
   useEffect(() => {
     const controller = new AbortController()
     setBusy(true)
+    setError(undefined)
     loadWallet(inspectRoute, controller.signal).then(
       (data) => {
         if (controller.signal.aborted) return
@@ -405,13 +422,19 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
 
   useEffect(() => {
     if (!open) return undefined
-    const timer = setInterval(() => setNonce(n => n + 1), REFRESH_MS)
+    const timer = setInterval(() => {
+      setPending('auto')
+      setNonce(n => n + 1)
+    }, REFRESH_MS)
     return () => clearInterval(timer)
   }, [open])
 
   const wasRunning = useRef(false)
   useEffect(() => {
-    if (wasRunning.current && !running) setNonce(n => n + 1)
+    if (wasRunning.current && !running) {
+      setPending('auto')
+      setNonce(n => n + 1)
+    }
     wasRunning.current = running
   }, [running])
 
@@ -442,10 +465,18 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
   }, [open])
 
   const snapshot: WalletSnapshot | undefined = bundle?.wallet.ok === true ? bundle.wallet : undefined
-  const badgeValue = badgeRemaining
-  const low = snapshot !== undefined && isLowBalance(snapshot.remaining, snapshot.unlimited)
-  const reload = (): void => { if (!busy) setNonce(n => n + 1) }
   const selected = inspectRoute ?? bundle?.selected ?? ''
+  const routeReady = snapshot !== undefined && snapshot.route === selected
+  const loading: 'block' | 'dim' | false = !busy
+    ? false
+    : !routeReady ? 'block' : pending === 'manual' ? 'dim' : false
+  const badgeValue = loading === 'block' ? '…' : badgeRemaining
+  const low = snapshot !== undefined && loading !== 'block' && isLowBalance(snapshot.remaining, snapshot.unlimited)
+  const reload = (): void => {
+    if (busy) return
+    setPending('manual')
+    setNonce(n => n + 1)
+  }
 
   return (
     <div ref={root} className={wide === false ? 'gww_layer gww_rail' : 'gww_layer'}>
@@ -464,7 +495,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
           {low && <span className="gww_dot" aria-hidden="true" />}
         </span>
         <span className="gww_badgeLabel">站点余额</span>
-        <span className="gww_badgeValue">{badgeValue}</span>
+        <span className="gww_badgeValue" {...loading === 'block' ? { 'data-wait': '' } : {}}>{badgeValue}</span>
       </button>
       {open && anchor !== undefined && (
         <div
@@ -502,7 +533,11 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
               error={error}
               accounts={bundle?.accounts ?? []}
               selected={selected}
-              onSelect={setInspectRoute}
+              loading={loading}
+              onSelect={(route) => {
+                setPending('switch')
+                setInspectRoute(route)
+              }}
               onRetry={reload}
             />
           </div>
