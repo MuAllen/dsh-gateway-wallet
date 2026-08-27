@@ -336,9 +336,7 @@ function WalletBody({
 
       <div className="gww_stats">
         <div className="gww_stat" {...isLowBalance(snapshot.remaining, snapshot.unlimited) ? { 'data-low': '' } : {}}>
-          <div className="gww_statValue">
-            {snapshot.unlimited === true ? '不限' : fmtMoney(snapshot.remaining)}
-          </div>
+          <div className="gww_statValue">{fmtMoney(snapshot.remaining)}</div>
           <div className="gww_statLabel">余额</div>
         </div>
         <div className="gww_stat">
@@ -378,6 +376,9 @@ function WalletBody({
       {snapshot.otherBalances?.map(item => (
         <p key={item.currency} className="gww_note">另有 {item.currency} {fmtMoney(item.remaining)}</p>
       ))}
+      {snapshot.unlimited === true && (
+        <p className="gww_note">站点账户余额读不到。</p>
+      )}
       {!snapshot.todayAvailable && snapshot.todayUnavailableReason === 'official-no-today' && (
         <p className="gww_note">官方余额接口不提供今日消费。</p>
       )}
@@ -392,10 +393,16 @@ function WalletBody({
         <p className="gww_note gww_ok">账户可用</p>
       )}
 
-      {(snapshot.neverExpires === true || snapshot.expiresAt !== undefined || snapshot.modelLimits !== undefined) && (
+      {(snapshot.unlimited === true || snapshot.neverExpires === true || snapshot.expiresAt !== undefined || snapshot.modelLimits !== undefined) && (
         <div className="gww_section">
           <div className="gww_sectionTitle">令牌</div>
           <div className="gww_rows">
+            {snapshot.unlimited === true && (
+              <div className="gww_row">
+                <span className="gww_rowName">额度</span>
+                <span className="gww_rowValue">不限</span>
+              </div>
+            )}
             {snapshot.neverExpires === true && (
               <div className="gww_row">
                 <span className="gww_rowName">到期</span>
@@ -494,7 +501,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
         if (data.wallet.ok === true) {
           setLastGood(prev => ({ ...prev, [data.wallet.route]: data.wallet }))
           setError(undefined)
-          setBadgeRemaining(data.wallet.unlimited === true ? '不限' : fmtMoney(data.wallet.remaining))
+          setBadgeRemaining(fmtMoney(data.wallet.remaining))
         } else {
           setError(walletErrorCopy(data.wallet.error))
           const kept = lastGoodRef.current[data.selected]

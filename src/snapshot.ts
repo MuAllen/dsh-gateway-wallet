@@ -543,6 +543,7 @@ async function readNewApi(account: RouteAccount, apiKey: string): Promise<Wallet
   const unlimited = data.unlimited_quota === true
   const keyName = typeof data.name === 'string' && data.name !== '' ? data.name : undefined
 
+  // unlimited_quota 只说明这把 key 没有额度上限，不是站点账户余额不限；余额字段留空。
   const remaining = unlimited ? undefined : quotaToMoney(available ?? (granted !== undefined && usedQuota !== undefined ? granted - usedQuota : undefined), units)
   const used = quotaToMoney(usedQuota, units)
   const now = Date.now()

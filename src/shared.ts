@@ -68,6 +68,7 @@ export interface WalletSnapshot {
   rate?: { rpm?: number; tpm?: number }
   todayAvailable: boolean
   todayUnavailableReason?: string
+  /** 这把 key 没有额度上限（`unlimited_quota`）。不是站点账户余额不限。 */
   unlimited?: boolean
   isAvailable?: boolean
 }
