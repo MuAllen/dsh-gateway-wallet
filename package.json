@@ -1,10 +1,13 @@
 {
   "name": "dsh-gateway-wallet",
-  "version": "0.1.0",
-  "description": "Live remaining balance and actual spend from the provider for the current API key, not a local token estimate.",
+  "version": "0.2.0",
+  "description": "Live remaining balance and actual spend from the provider for the current API key, not a local token estimate. Adapted for DeepSeek Harness 0.2.",
   "type": "module",
   "license": "MIT",
   "author": "MuAllen",
+  "contributors": [
+    "DeepSeek Harness"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/MuAllen/dsh-gateway-wallet.git"
@@ -41,26 +44,23 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-ui-primitives"
       ],
       "platform": "web"
     }
   },
   "scripts": {
-    "build": "./build.sh"
+    "build": "node build.mjs"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
-    "@deepseek-ai/dsh-client-runtime": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
-    "@deepseek-ai/dsh-client-ui-primitives": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
-    "@deepseek-ai/dsh-client-ui-sidebar": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
-    "@deepseek-ai/dsh-client-ui-slots": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
+    "@deepseek-ai/cordis": ">=4.0.0-rc.1 <5",
+    "@deepseek-ai/dsh-client-ui-primitives": ">=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-client-ui-sidebar": ">=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.2.0-rc.1 <0.3.0-0",
     "react": "^18.2.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": { "optional": true },
-    "@deepseek-ai/dsh-client-runtime": { "optional": true },
     "@deepseek-ai/dsh-client-ui-primitives": { "optional": true },
     "@deepseek-ai/dsh-client-ui-sidebar": { "optional": true },
     "@deepseek-ai/dsh-client-ui-slots": { "optional": true }

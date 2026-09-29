@@ -55,6 +55,39 @@ function isOfficialDeepSeekProvider(provider: string): boolean {
   return provider === 'deepseek-official' || provider === 'deepseek'
 }
 
+/** Read one plugin namespace's merged config (inherited layers + profile override). */
+function readSettingsNamespace(ctx: Context, ns: string): unknown {
+  const configEditor = ctx.get('configEditor') as {
+    configuration?: () => Array<{ entry: { options?: { id?: string } }; inherited: unknown; override: unknown }>
+  } | undefined
+  if (configEditor?.configuration !== undefined) {
+    try {
+      for (const row of configEditor.configuration()) {
+        if (row.entry?.options?.id !== ns) continue
+        return mergeLayers(row.inherited, row.override)
+      }
+    } catch {
+      return undefined
+    }
+  }
+  // DSH 0.1 fallback: the settings service exposed a direct getter.
+  const settings = ctx.get('settings') as { get?: (ns: string) => unknown } | undefined
+  return settings?.get?.(ns)
+}
+
+function mergeLayers(under: unknown, over: unknown): unknown {
+  if (!isPlainObject(under) || !isPlainObject(over)) return over
+  const merged: Record<string, unknown> = { ...under }
+  for (const [key, value] of Object.entries(over)) {
+    merged[key] = Object.hasOwn(merged, key) ? mergeLayers(merged[key], value) : value
+  }
+  return merged
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 function readAt(section: unknown, path: readonly string[]): unknown {
   let cursor: unknown = section
   for (const key of path) {
@@ -353,14 +386,13 @@ export function listRouteAccounts(ctx: Context): RouteAccount[] {
     settingsNs: string
     settingsPath?: string[]
   }> } | undefined
-  const settings = ctx.get('settings') as { get?: (ns: string) => unknown } | undefined
-  if (llm?.listConfigurableProviders === undefined || settings?.get === undefined) return []
+  if (llm?.listConfigurableProviders === undefined) return []
 
   const out: RouteAccount[] = []
   for (const entry of llm.listConfigurableProviders()) {
     let profile: unknown
     try {
-      profile = readAt(settings.get(entry.settingsNs), entry.settingsPath ?? [])
+      profile = readAt(readSettingsNamespace(ctx, entry.settingsNs), entry.settingsPath ?? [])
     } catch {
       profile = undefined
     }
@@ -384,8 +416,7 @@ export function listRouteAccounts(ctx: Context): RouteAccount[] {
 export function currentAccount(ctx: Context): RouteAccount | undefined {
   const accounts = listRouteAccounts(ctx)
   if (accounts.length === 0) return undefined
-  const settings = ctx.get('settings') as { get?: (ns: string) => unknown } | undefined
-  const defaults = settings?.get?.('agent-default-model') as { provider?: string; model?: string } | undefined
+  const defaults = readSettingsNamespace(ctx, 'agent-default-model') as { provider?: string; model?: string } | undefined
   const hit = defaults?.provider !== undefined
     ? accounts.find(account => account.route === defaults.provider)
     : undefined

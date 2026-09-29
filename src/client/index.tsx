@@ -1,19 +1,22 @@
 /**
  * 侧边栏左下角入口：与「用量账本」同槽，点击弹出站点真实账本。
+ * DSH 0.2 适配：槽位 props 由运行时按 SlotMap 组装（owner props `wide` +
+ * 标准 props），这里只声明本组件实际读取的字段，运行时 import 归零。
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  IconApiOutline14,
-  IconCloseOutline16,
-  IconRefreshOutline14,
+  IconApiOutlineRegular,
+  IconCloseOutlineRegular,
+  IconRefreshOutlineRegular,
   useDismissOnOutsidePointer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { AccountListItem, Money, TokenBuckets, WalletBundle, WalletError, WalletPayload, WalletSnapshot } from '../shared.ts'
 
-type SeatProps = PropsRuntime<'sidebar.footer.action'>
+/** `sidebar.footer.action` 槽位实际消费的 props（owner: wide）。 */
+interface SeatProps {
+  /** 侧栏是否渲染宽内容（false = 56px 窄轨）。 */
+  wide?: boolean
+}
 
 const PATH = '/api/gateway-wallet'
 const REFRESH_MS = 45_000
@@ -23,21 +26,22 @@ const CSS = [
   "div:has(> [data-slot='sidebar.footer.action']){flex-wrap:wrap;gap:6px}",
   "[data-slot='sidebar.footer.action']:has(.gww_rail){flex:none;width:36px}",
   '.gww_layer{flex:0 0 100%;min-width:0;align-items:center;height:49px;margin:8px 0 0;display:flex;position:relative}',
-  '.gww_badge{width:100%;min-width:0;height:49px;color:var(--dsw-alias-label-primary);cursor:pointer;background:0 0;border:none;border-radius:12px;align-items:center;gap:8px;padding:0 8px 0 6px;font-family:inherit;font-size:14px;display:inline-flex;position:relative}',
+  '.gww_badge{width:100%;min-width:0;height:49px;color:var(--dsw-alias-label-primary);cursor:pointer;background:var(--dsw-specific-sidebar-fill,transparent);border:none;border-radius:12px;align-items:center;gap:8px;padding:0 12px 0 8px;font-family:inherit;display:inline-flex;position:relative}',
   '.gww_badge:hover{background:var(--dsw-alias-interactive-bg-hover-solid)}',
   '.gww_badge[data-active]{background:var(--dsw-alias-interactive-bg-hover)}',
   '.gww_badgeIcon{flex:none;display:inline-flex;align-items:center;position:relative}',
   '.gww_dot{position:absolute;top:-2px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-state-warn-primary);box-shadow:0 0 0 1.5px var(--dsw-alias-bg-base);pointer-events:none}',
-  '.gww_badgeLabel{text-overflow:ellipsis;white-space:nowrap;min-width:0;overflow:hidden}',
-  '.gww_badgeValue{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;flex:none;margin-left:auto;font-size:12px;line-height:16px}',
+  '.gww_badgeValue{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;flex:none;min-width:0;font-size:17px;line-height:22px;font-weight:600}',
   '.gww_badge[data-low] .gww_badgeValue{color:var(--dsw-alias-state-warn-primary)}',
+  '.gww_badgeToday{color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;flex:none;margin-left:auto;font-size:12px;line-height:16px}',
+  '.gww_badge[data-low] .gww_badgeToday{color:var(--dsw-alias-state-warn-primary)}',
   '.gww_stat[data-low] .gww_statValue{color:var(--dsw-alias-state-warn-primary)}',
   '.gww_layer.gww_rail{flex:none;width:36px;height:36px;margin:0;overflow:visible}',
   '.gww_layer.gww_rail .gww_badge{border-radius:50%;justify-content:center;gap:0;width:36px;height:36px;padding:0;overflow:visible}',
   '.gww_layer.gww_rail .gww_badgeIcon{position:static}',
   '.gww_layer.gww_rail .gww_dot{top:1px;right:1px}',
-  '.gww_layer.gww_rail .gww_badgeLabel,.gww_layer.gww_rail .gww_badgeValue{display:none}',
-  '.gww_panel{z-index:30;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1);background-color:Canvas;background-image:linear-gradient(rgb(from var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-base)) r g b / 1),rgb(from var(--dsw-alias-bg-overlay,var(--dsw-alias-bg-base)) r g b / 1));width:380px;max-width:calc(100vw - 24px);max-height:76vh;box-shadow:var(--dsw-shadow-lv2);border-radius:12px;flex-direction:column;display:flex;position:fixed;overflow:hidden;backdrop-filter:none;-webkit-backdrop-filter:none}',
+  '.gww_layer.gww_rail .gww_badgeLabel,.gww_layer.gww_rail .gww_badgeValue,.gww_layer.gww_rail .gww_badgeToday{display:none}',
+  '.gww_panel{z-index:30;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l1);background-color:Canvas;width:380px;max-width:calc(100vw - 24px);max-height:76vh;box-shadow:var(--dsw-shadow-lv2);border-radius:12px;flex-direction:column;display:flex;position:fixed;overflow:hidden;backdrop-filter:none;-webkit-backdrop-filter:none}',
   '.gww_header{box-sizing:border-box;border-bottom:1px solid var(--dsw-alias-border-l2);flex:none;justify-content:space-between;align-items:center;min-height:44px;padding:10px 12px;display:flex;gap:8px}',
   '.gww_title{color:var(--dsw-alias-label-primary);font-size:13px;font-weight:500;line-height:20px;white-space:nowrap}',
   '.gww_headerActions{align-items:center;gap:2px;display:flex;flex:none}',
@@ -79,7 +83,13 @@ const CSS = [
 
 function ensureCss(): void {
   if (typeof document === 'undefined') return
-  if (document.querySelector(`style[data-plugin-css=${JSON.stringify(STYLE_ID)}]`) !== null) return
+  const existing = document.querySelector(`style[data-plugin-css=${JSON.stringify(STYLE_ID)}]`)
+  // 热更新后同 id 的旧样式还挂在 head 里；内容变了就原位替换，保证新样式生效。
+  if (existing !== null) {
+    if (existing.textContent === CSS) return
+    existing.textContent = CSS
+    return
+  }
   const tag = document.createElement('style')
   tag.dataset.plugin = 'dsh-gateway-wallet'
   tag.dataset.pluginCss = STYLE_ID
@@ -463,7 +473,7 @@ function WalletBody({
   )
 }
 
-function WalletSeat({ wide, useSessions }: SeatProps) {
+function WalletSeat({ wide = true, useSessions }: SeatProps & { useSessions?: (selector: (state: { ids: readonly string[]; byId: Record<string, { running?: boolean }> }) => boolean) => boolean }) {
   ensureCss()
   const [open, setOpen] = useState(false)
   const [inspectRoute, setInspectRoute] = useState<string | undefined>(undefined)
@@ -478,7 +488,8 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
   const lastGoodRef = useRef(lastGood)
   lastGoodRef.current = lastGood
   const root = useRef<HTMLDivElement>(null)
-  const running = useSessions(state => state.ids.some(id => state.byId[id]?.running === true))
+  // 会话运行结束时自动刷新一次；标准 props 里拿不到 useSessions 时静默跳过。
+  const running = useSessions?.(state => state.ids.some(id => state.byId[id]?.running === true)) ?? false
 
   useEffect(() => {
     const controller = new AbortController()
@@ -588,6 +599,12 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
           }
         : { title: error }
   const badgeValue = loading === 'block' ? '…' : badgeRemaining
+  // 徽标第二位：今日实扣（读不到时显示占位，不猜 0）。
+  const badgeToday = loading === 'block'
+    ? ''
+    : snapshot?.todayAvailable === true
+      ? `今日 ${fmtMoney(snapshot.today)}`
+      : '今日 —'
   const low = snapshot !== undefined && loading !== 'block' && isLowBalance(snapshot.remaining, snapshot.unlimited)
   const reload = (): void => {
     if (busy) return
@@ -608,11 +625,11 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
         onClick={() => setOpen(value => !value)}
       >
         <span className="gww_badgeIcon">
-          <IconApiOutline14 size={wide === false ? 18 : 14} />
+          <IconApiOutlineRegular size={wide === false ? 18 : 14} />
           {low && <span className="gww_dot" aria-hidden="true" />}
         </span>
-        <span className="gww_badgeLabel">站点余额</span>
         <span className="gww_badgeValue" {...loading === 'block' ? { 'data-wait': '' } : {}}>{badgeValue}</span>
+        <span className="gww_badgeToday">{badgeToday}</span>
       </button>
       {open && anchor !== undefined && (
         <div
@@ -631,7 +648,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
                 aria-label="刷新"
                 onClick={reload}
               >
-                <IconRefreshOutline14 size={14} />
+                <IconRefreshOutlineRegular size={14} />
               </button>
               <button
                 type="button"
@@ -639,7 +656,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
                 aria-label="关闭"
                 onClick={() => setOpen(false)}
               >
-                <IconCloseOutline16 size={16} />
+                <IconCloseOutlineRegular size={16} />
               </button>
             </div>
           </div>
@@ -668,7 +685,7 @@ function WalletSeat({ wide, useSessions }: SeatProps) {
 export const name = 'dsh-gateway-wallet'
 export const inject = ['slots']
 
-export function apply(ctx: ClientContext): void {
+export function apply(ctx: { slots: { inject: (name: string, register: () => unknown) => unknown; register: (options: Record<string, unknown>, component: unknown) => unknown } }): void {
   ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
     name: 'sidebar.footer.action',
     id: 'dsh-gateway-wallet',
