@@ -26,7 +26,6 @@ cd "$DSH_REPO"
   --sourcemap \
   --external:react --external:react/jsx-runtime \
   --external:@deepseek-ai/cordis \
-  --external:@deepseek-ai/dsh-client-runtime/client \
   --external:@deepseek-ai/dsh-client-ui-slots \
   --external:@deepseek-ai/dsh-client-ui-sidebar/client \
   --external:@deepseek-ai/dsh-client-ui-primitives \
